@@ -1,0 +1,143 @@
+
+{% extends "base.html" %}
+
+{% block title %}Certificate Analysis - PhishShield Pro{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="card-title mb-0">
+                        <i class="fas fa-certificate me-2"></i>
+                        Certificate Analysis
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" class="mb-4">
+                        <div class="form-group mb-3">
+                            <label for="domain" class="form-label">Domain to Analyze</label>
+                            <input type="text" class="form-control" id="domain" name="domain" 
+                                   placeholder="example.com" required>
+                            <div class="form-text">Enter domain name without protocol (https://)</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>Analyze Certificate
+                        </button>
+                    </form>
+
+                    {% if result %}
+                    <div class="alert alert-{{ 'success' if result.result == 'trusted' else 'warning' if result.result == 'suspicious' else 'danger' }} mt-4">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-{{ 'shield-alt' if result.result == 'trusted' else 'exclamation-triangle' if result.result == 'suspicious' else 'times-circle' }} me-2"></i>
+                            Certificate Analysis Result
+                        </h5>
+                        <p class="mb-0">
+                            <strong>Domain:</strong> {{ domain }}<br>
+                            <strong>Status:</strong> {{ result.result.title() }}<br>
+                            <strong>Confidence:</strong> {{ "%.1f%%" | format(result.confidence * 100) }}
+                        </p>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">Certificate Details</h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if result.certificate_info %}
+                                    <dl class="row">
+                                        <dt class="col-sm-4">Valid:</dt>
+                                        <dd class="col-sm-8">
+                                            <span class="badge bg-{{ 'success' if result.certificate_info.is_valid else 'danger' }}">
+                                                {{ 'Yes' if result.certificate_info.is_valid else 'No' }}
+                                            </span>
+                                        </dd>
+                                        
+                                        <dt class="col-sm-4">Expired:</dt>
+                                        <dd class="col-sm-8">
+                                            <span class="badge bg-{{ 'danger' if result.certificate_info.is_expired else 'success' }}">
+                                                {{ 'Yes' if result.certificate_info.is_expired else 'No' }}
+                                            </span>
+                                        </dd>
+                                        
+                                        <dt class="col-sm-4">Self-Signed:</dt>
+                                        <dd class="col-sm-8">
+                                            <span class="badge bg-{{ 'warning' if result.certificate_info.is_self_signed else 'success' }}">
+                                                {{ 'Yes' if result.certificate_info.is_self_signed else 'No' }}
+                                            </span>
+                                        </dd>
+                                        
+                                        {% if result.certificate_info.issuer %}
+                                        <dt class="col-sm-4">Issuer:</dt>
+                                        <dd class="col-sm-8">{{ result.certificate_info.issuer }}</dd>
+                                        {% endif %}
+                                        
+                                        {% if result.certificate_info.valid_from %}
+                                        <dt class="col-sm-4">Valid From:</dt>
+                                        <dd class="col-sm-8">{{ result.certificate_info.valid_from.strftime('%Y-%m-%d') }}</dd>
+                                        {% endif %}
+                                        
+                                        {% if result.certificate_info.valid_to %}
+                                        <dt class="col-sm-4">Valid To:</dt>
+                                        <dd class="col-sm-8">{{ result.certificate_info.valid_to.strftime('%Y-%m-%d') }}</dd>
+                                        {% endif %}
+                                        
+                                        {% if result.certificate_info.signature_algorithm %}
+                                        <dt class="col-sm-4">Algorithm:</dt>
+                                        <dd class="col-sm-8">{{ result.certificate_info.signature_algorithm }}</dd>
+                                        {% endif %}
+                                        
+                                        {% if result.certificate_info.key_size %}
+                                        <dt class="col-sm-4">Key Size:</dt>
+                                        <dd class="col-sm-8">{{ result.certificate_info.key_size }} bits</dd>
+                                        {% endif %}
+                                    </dl>
+                                    {% else %}
+                                    <p class="text-muted">Certificate details not available</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">Detection Methods</h6>
+                                </div>
+                                <div class="card-body">
+                                    {% if result.detection_methods %}
+                                    <ul class="list-unstyled">
+                                        {% for method in result.detection_methods %}
+                                        <li class="mb-2">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            {{ method }}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% endif %}
+                                    
+                                    {% if result.features %}
+                                    <h6 class="mt-3">Features Detected:</h6>
+                                    <ul class="list-unstyled">
+                                        {% for feature, value in result.features.items() %}
+                                        <li class="mb-1">
+                                            <span class="badge bg-secondary me-2">{{ feature }}</span>
+                                            {{ value }}
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

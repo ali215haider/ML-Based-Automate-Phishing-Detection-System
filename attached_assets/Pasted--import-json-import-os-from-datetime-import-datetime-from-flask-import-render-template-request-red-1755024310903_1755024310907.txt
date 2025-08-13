@@ -1,0 +1,521 @@
+
+import json
+import os
+from datetime import datetime
+from flask import render_template, request, redirect, url_for, flash, session, jsonify, send_file
+from flask_login import login_user, logout_user, login_required, current_user
+from werkzeug.utils import secure_filename
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+import io
+from app import app, db
+from models import User, ScanHistory, PhishingReport, CertificateAnalysis, MLDataset
+from utils.detection import analyze_url, analyze_email, analyze_html_file
+from utils.certificate_analysis import analyze_certificate
+import re
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        
+        # Validation
+        if not username or not email or not password:
+            flash('All fields are required', 'error')
+            return render_template('register.html')
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'error')
+            return render_template('register.html')
+        
+        # Strong password validation
+        if not User.is_strong_password(password):
+            flash('Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters', 'error')
+            return render_template('register.html')
+        
+        # Check if user exists
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists', 'error')
+            return render_template('register.html')
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered', 'error')
+            return render_template('register.html')
+        
+        # Create new user
+        try:
+            user = User()
+            user.username = username
+            user.email = email
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            
+            flash('Registration successful! Please log in.', 'success')
+            return redirect(url_for('login'))
+        except ValueError as e:
+            flash(str(e), 'error')
+            return render_template('register.html')
+    
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        user = User.query.filter_by(username=username).first()
+        
+        if user and user.check_password(password):
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form['email']
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            # In a real application, you would send an email with reset link
+            flash('If an account with that email exists, password reset instructions have been sent.', 'info')
+        else:
+            # Don't reveal if email exists or not for security
+            flash('If an account with that email exists, password reset instructions have been sent.', 'info')
+        
+        return redirect(url_for('login'))
+    
+    return render_template('forgot_password.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('You have been logged out', 'info')
+    return redirect(url_for('index'))
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    # Admin can see all users' data, secondary users only their own
+    if current_user.is_admin:
+        recent_scans = ScanHistory.query.order_by(ScanHistory.scan_time.desc()).limit(10).all()
+        total_scans = ScanHistory.query.count()
+        phishing_detected = ScanHistory.query.filter_by(result='phishing').count()
+        safe_scans = ScanHistory.query.filter_by(result='safe').count()
+    else:
+        recent_scans = ScanHistory.query.filter_by(user_id=current_user.id).order_by(ScanHistory.scan_time.desc()).limit(5).all()
+        total_scans = ScanHistory.query.filter_by(user_id=current_user.id).count()
+        phishing_detected = ScanHistory.query.filter_by(user_id=current_user.id, result='phishing').count()
+        safe_scans = ScanHistory.query.filter_by(user_id=current_user.id, result='safe').count()
+    
+    stats = {
+        'total_scans': total_scans,
+        'phishing_detected': phishing_detected,
+        'safe_scans': safe_scans,
+        'suspicious_scans': total_scans - phishing_detected - safe_scans
+    }
+    
+    return render_template('dashboard.html', recent_scans=recent_scans, stats=stats)
+
+@app.route('/scan-url', methods=['GET', 'POST'])
+@login_required
+def scan_url():
+    if request.method == 'POST':
+        url = request.form['url'].strip()
+        
+        if not url:
+            flash('Please enter a URL to scan', 'error')
+            return render_template('scan_url.html')
+        
+        # Analyze the URL
+        result = analyze_url(url)
+        
+        # Save scan history
+        scan = ScanHistory()
+        scan.user_id = current_user.id
+        scan.scan_type = 'url'
+        scan.content = url
+        scan.result = result['result']
+        scan.confidence = result['confidence']
+        scan.detection_methods = json.dumps(result['detection_methods'])
+        scan.features_detected = json.dumps(result['features'])
+        scan.ip_address = request.remote_addr
+        scan.user_agent = request.headers.get('User-Agent')
+        db.session.add(scan)
+        db.session.commit()
+        
+        return render_template('scan_url.html', result=result, url=url)
+    
+    return render_template('scan_url.html')
+
+@app.route('/scan-email', methods=['GET', 'POST'])
+@login_required
+def scan_email():
+    if request.method == 'POST':
+        email_content = ''
+        source_type = 'text'
+        
+        # Check if file was uploaded
+        if 'email_file' in request.files and request.files['email_file'].filename:
+            file = request.files['email_file']
+            if file and file.filename:
+                filename = secure_filename(file.filename)
+                
+                # Check file extension - only allow .eml files
+                if not filename.lower().endswith('.eml'):
+                    flash('Please upload only .eml files for email analysis', 'error')
+                    return render_template('scan_email.html')
+                
+                try:
+                    email_content = file.read().decode('utf-8', errors='ignore')
+                    source_type = 'file'
+                except Exception as e:
+                    flash(f'Error reading file: {str(e)}', 'error')
+                    return render_template('scan_email.html')
+        else:
+            # Get text content
+            email_content = request.form.get('email_content', '').strip()
+        
+        if not email_content:
+            flash('Please enter email content or upload an .eml file to scan', 'error')
+            return render_template('scan_email.html')
+        
+        # Analyze the email
+        result = analyze_email(email_content)
+        
+        # Save scan history
+        scan = ScanHistory()
+        scan.user_id = current_user.id
+        scan.scan_type = 'email'
+        scan.content = f"Source: {source_type} - {email_content[:1000]}"
+        scan.result = result['result']
+        scan.confidence = result['confidence']
+        scan.detection_methods = json.dumps(result['detection_methods'])
+        scan.features_detected = json.dumps(result['features'])
+        scan.ip_address = request.remote_addr
+        scan.user_agent = request.headers.get('User-Agent')
+        db.session.add(scan)
+        db.session.commit()
+        
+        return render_template('scan_email.html', result=result, source_type=source_type)
+    
+    return render_template('scan_email.html')
+
+@app.route('/scan-html', methods=['GET', 'POST'])
+@login_required
+def scan_html():
+    if request.method == 'POST':
+        if 'html_file' not in request.files:
+            flash('No file selected', 'error')
+            return render_template('scan_html.html')
+        
+        file = request.files['html_file']
+        if file.filename == '':
+            flash('No file selected', 'error')
+            return render_template('scan_html.html')
+        
+        filename = secure_filename(file.filename)
+        
+        # Check file extension - only allow .html files
+        if not filename.lower().endswith(('.html', '.htm')):
+            flash('Please upload only .html or .htm files', 'error')
+            return render_template('scan_html.html')
+        
+        # Read file content
+        html_content = file.read().decode('utf-8', errors='ignore')
+        
+        # Analyze the HTML
+        result = analyze_html_file(html_content, filename)
+        
+        # Save scan history
+        scan = ScanHistory()
+        scan.user_id = current_user.id
+        scan.scan_type = 'html'
+        scan.content = f"File: {filename}"
+        scan.result = result['result']
+        scan.confidence = result['confidence']
+        scan.detection_methods = json.dumps(result['detection_methods'])
+        scan.features_detected = json.dumps(result['features'])
+        scan.ip_address = request.remote_addr
+        scan.user_agent = request.headers.get('User-Agent')
+        db.session.add(scan)
+        db.session.commit()
+        
+        return render_template('scan_html.html', result=result, filename=filename)
+    
+    return render_template('scan_html.html')
+
+@app.route('/scan-certificate', methods=['GET', 'POST'])
+@login_required
+def scan_certificate():
+    if request.method == 'POST':
+        domain = request.form['domain'].strip()
+        
+        if not domain:
+            flash('Please enter a domain to scan', 'error')
+            return render_template('scan_certificate.html')
+        
+        # Analyze the certificate
+        result = analyze_certificate(domain)
+        
+        # Save certificate analysis
+        cert_analysis = CertificateAnalysis()
+        cert_analysis.user_id = current_user.id
+        cert_analysis.domain = domain
+        cert_analysis.certificate_data = json.dumps(result.get('certificate_data', {}))
+        cert_analysis.is_valid = result.get('is_valid', False)
+        cert_analysis.is_expired = result.get('is_expired', True)
+        cert_analysis.is_self_signed = result.get('is_self_signed', False)
+        cert_analysis.issuer = result.get('issuer', '')
+        cert_analysis.subject = result.get('subject', '')
+        cert_analysis.valid_from = result.get('valid_from')
+        cert_analysis.valid_to = result.get('valid_to')
+        cert_analysis.signature_algorithm = result.get('signature_algorithm', '')
+        cert_analysis.key_size = result.get('key_size', 0)
+        cert_analysis.analysis_result = result.get('result', 'invalid')
+        db.session.add(cert_analysis)
+        
+        # Save scan history
+        scan = ScanHistory()
+        scan.user_id = current_user.id
+        scan.scan_type = 'certificate'
+        scan.content = domain
+        scan.result = result['result']
+        scan.confidence = result['confidence']
+        scan.detection_methods = json.dumps(result['detection_methods'])
+        scan.features_detected = json.dumps(result['features'])
+        scan.ip_address = request.remote_addr
+        scan.user_agent = request.headers.get('User-Agent')
+        db.session.add(scan)
+        db.session.commit()
+        
+        return render_template('scan_certificate.html', result=result, domain=domain)
+    
+    return render_template('scan_certificate.html')
+
+@app.route('/scan-history')
+@login_required
+def scan_history():
+    page = request.args.get('page', 1, type=int)
+    
+    # Admin can see all scans, secondary users only their own
+    if current_user.is_admin:
+        scans = ScanHistory.query.order_by(ScanHistory.scan_time.desc()).paginate(
+            page=page, per_page=20, error_out=False
+        )
+    else:
+        scans = ScanHistory.query.filter_by(user_id=current_user.id).order_by(ScanHistory.scan_time.desc()).paginate(
+            page=page, per_page=20, error_out=False
+        )
+    
+    return render_template('scan_history.html', scans=scans)
+
+@app.route('/education')
+def education():
+    return render_template('education.html')
+
+@app.route('/profile')
+@login_required
+def profile():
+    user_reports = PhishingReport.query.filter_by(user_id=current_user.id).order_by(PhishingReport.created_at.desc()).all()
+    return render_template('profile.html', reports=user_reports)
+
+@app.route('/download-report')
+@login_required
+def download_report():
+    # Generate PDF report of user's scan history
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Title
+    title = Paragraph(f"PhishShield Pro - Scan History Report for {current_user.username}", styles['Title'])
+    story.append(title)
+    story.append(Spacer(1, 12))
+    
+    # User info
+    user_info = Paragraph(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal'])
+    story.append(user_info)
+    story.append(Spacer(1, 12))
+    
+    # Get user's scan history
+    scans = ScanHistory.query.filter_by(user_id=current_user.id).order_by(ScanHistory.scan_time.desc()).all()
+    
+    if scans:
+        # Create table
+        data = [['Date', 'Type', 'Content', 'Result', 'Confidence']]
+        for scan in scans:
+            data.append([
+                scan.scan_time.strftime('%Y-%m-%d %H:%M'),
+                scan.scan_type.capitalize(),
+                scan.content[:50] + '...' if len(scan.content) > 50 else scan.content,
+                scan.result.capitalize(),
+                f"{scan.confidence:.1%}" if scan.confidence else 'N/A'
+            ])
+        
+        table = Table(data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(table)
+    else:
+        no_data = Paragraph("No scan history found.", styles['Normal'])
+        story.append(no_data)
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f'phishield_report_{current_user.username}_{datetime.now().strftime("%Y%m%d")}.pdf',
+        mimetype='application/pdf'
+    )
+
+@app.route('/admin')
+@login_required
+def admin():
+    if not current_user.is_admin:
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Get admin statistics
+    total_users = User.query.count()
+    total_scans = ScanHistory.query.count()
+    total_reports = PhishingReport.query.count()
+    total_datasets = MLDataset.query.count()
+    
+    # Recent activity
+    recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
+    recent_scans = ScanHistory.query.order_by(ScanHistory.scan_time.desc()).limit(10).all()
+    
+    stats = {
+        'total_users': total_users,
+        'total_scans': total_scans,
+        'total_reports': total_reports,
+        'total_datasets': total_datasets
+    }
+    
+    return render_template('admin.html', stats=stats, recent_users=recent_users, recent_scans=recent_scans)
+
+@app.route('/admin/populate-datasets', methods=['POST'])
+@login_required
+def populate_datasets():
+    if not current_user.is_admin:
+        flash('Access denied. Admin privileges required.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        from utils.dataset_manager import DatasetManager
+        manager = DatasetManager()
+        manager.populate_database()
+        flash('Datasets populated successfully with 6000+ records!', 'success')
+    except Exception as e:
+        flash(f'Error populating datasets: {str(e)}', 'error')
+    
+    return redirect(url_for('admin'))
+
+@app.route('/report-phishing', methods=['POST'])
+@login_required
+def report_phishing():
+    content = request.form['content'].strip()
+    report_type = request.form['report_type']
+    description = request.form.get('description', '').strip()
+    
+    if not content:
+        flash('Content is required', 'error')
+        return redirect(url_for('profile'))
+    
+    # Create new report
+    report = PhishingReport()
+    report.user_id = current_user.id
+    report.content = content
+    report.report_type = report_type
+    report.description = description
+    db.session.add(report)
+    db.session.commit()
+    
+    flash('Thank you for reporting! We will investigate this content.', 'success')
+    return redirect(url_for('profile'))
+
+@app.route('/api/scan-url', methods=['POST'])
+@login_required
+def api_scan_url():
+    """API endpoint for browser extension"""
+    data = request.get_json()
+    url = data.get('url', '').strip()
+    
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+    
+    # Analyze the URL
+    result = analyze_url(url)
+    
+    # Save scan history
+    scan = ScanHistory()
+    scan.user_id = current_user.id
+    scan.scan_type = 'url'
+    scan.content = url
+    scan.result = result['result']
+    scan.confidence = result['confidence']
+    scan.detection_methods = json.dumps(result['detection_methods'])
+    scan.features_detected = json.dumps(result['features'])
+    scan.ip_address = request.remote_addr
+    scan.user_agent = request.headers.get('User-Agent')
+    db.session.add(scan)
+    db.session.commit()
+    
+    return jsonify(result)
+
+@app.route('/api/password-strength', methods=['POST'])
+def api_password_strength():
+    """API endpoint to check password strength"""
+    data = request.get_json()
+    password = data.get('password', '')
+    
+    strength = {
+        'is_strong': User.is_strong_password(password),
+        'length': len(password) >= 8,
+        'has_upper': bool(re.search(r'[A-Z]', password)),
+        'has_lower': bool(re.search(r'[a-z]', password)),
+        'has_digit': bool(re.search(r'\d', password)),
+        'has_special': bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', password))
+    }
+    
+    return jsonify(strength)
+
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('500.html'), 500

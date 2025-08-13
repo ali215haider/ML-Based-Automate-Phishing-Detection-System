@@ -1,0 +1,27 @@
+I want to add some more features in my automate phishing detection system.
+Note: Don,t change any gui any color any design only add the below intructions.
+1. Only admin user see the data of other user.
+2. Secondary user not able too see the other user data.
+3. Create perfect database where data is stored of the user admin and scan history stored password stored in hash.
+4. 1 Admin user admin user are the project owner only admin user is able to perform any changes in the project except admin user all are the secondary users those 
+secondary users are note able to perform any changes in the website oor project files.
+5. If a new user register itself into the website make sure his and her information stored in the database for the future login into the website if user put valid information
+ they were able to login into the website no need for again register itself if user put his her valid username and password.
+6. note: login page work properly.
+7. Add characters upper case and lower case in strong password if user register the login page show after the password bar show user , numbers if password is not strong the user
+ is note able the register itself.
+8. Enhance the rule based detection methods and and shows in the result on which bases the system will detect the safe and phishing urls, emails, and html content.
+   All detections urls detection phishing email detection and html file content detection work professionally and according to the industry standards user were easily able to understand the detection results.
+9. i want to add datasets.csv files of phishing and legitimate urls,emails, html files for ML based urls detection, email detection, and html file detection. Data in the datasets 5000 to 6000 and make sure data in datasets are accurate not fake data used in the datasets.
+10. I want in email analyzer detection choose file option like option in html scanner where the user choose the .eml file from the local machine.
+11. make sure in email analyzer only .eml file upload and in html scanner only .html file upload if user upload any other file show error choose correct file.
+12. in user profile download the user scan history report in pdf format.
+13. Export data option delete from the project add download pdf file instead of export data oprion.
+14.Specially i want to add certificate analysis in my project make sure you add the certificate analysis option in my project with proper working and professional
+ working according to the industry standards use accurate and athentic data used in the certificate analysis process. Add same card of certificate analysis like the 
+url scanner card html scanner card and email analysis card. Add the certificate analysis card below the these three cards professionally with the related colors of the
+ existed cards. Add option of certificate in header scan options. Add some educational tips od certificate analysis in education portion of the website.
+Note: Add these features like very professionally according to the existing website colors don,t change the color scheme. add new feature with the existing color scheme.
+15. Make sure all the files and folder correctly linked to each other without any errors.
+16. Make sure the chrome extension work properally for automatic real time analysis.
+17.At the end make for me the complete documentation of this project every detail required in the report.

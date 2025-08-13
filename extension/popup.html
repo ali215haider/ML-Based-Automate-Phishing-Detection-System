@@ -1,0 +1,322 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard</title>
+    <style>
+        body {
+            width: 350px;
+            min-height: 400px;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .header {
+            padding: 20px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header .version {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .status-section {
+            padding: 20px;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .status-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-size: 18px;
+        }
+
+        .status-safe {
+            background: #28a745;
+        }
+
+        .status-warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .status-danger {
+            background: #dc3545;
+        }
+
+        .status-scanning {
+            background: #17a2b8;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .status-text {
+            text-align: center;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .status-details {
+            text-align: center;
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .actions {
+            padding: 0 20px 20px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(0, 0, 0, 0.2);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        .config-section {
+            padding: 0 20px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 20px;
+        }
+
+        .config-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 15px 0 10px;
+        }
+
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .toggle-label {
+            font-size: 13px;
+            flex: 1;
+        }
+
+        .switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.3);
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #28a745;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        .footer {
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 11px;
+            opacity: 0.7;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ PhishShield Pro</h1>
+        <div class="version">Version 2.0</div>
+    </div>
+
+    <div class="status-section">
+        <div class="status-card">
+            <div id="statusIcon" class="status-icon status-scanning">
+                <span>🔍</span>
+            </div>
+            <div id="statusText" class="status-text">Scanning current page...</div>
+            <div id="statusDetails" class="status-details">Analyzing for threats</div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <div id="todayScans" class="stat-number">0</div>
+                <div class="stat-label">Today's Scans</div>
+            </div>
+            <div class="stat-item">
+                <div id="threatsBlocked" class="stat-number">0</div>
+                <div class="stat-label">Threats Blocked</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="actions">
+        <button id="scanNow" class="btn btn-primary">
+            <span>🔍</span> Scan This Page
+        </button>
+        <button id="reportPhishing" class="btn btn-secondary">
+            <span>⚠️</span> Report as Phishing
+        </button>
+        <button id="openDashboard" class="btn btn-secondary">
+            <span>📊</span> Open Dashboard
+        </button>
+    </div>
+
+    <div class="config-section">
+        <div class="config-title">Protection Settings</div>
+        
+        <div class="toggle-switch">
+            <span class="toggle-label">Real-time Protection</span>
+            <label class="switch">
+                <input type="checkbox" id="realtimeProtection" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="toggle-switch">
+            <span class="toggle-label">Auto-scan Links</span>
+            <label class="switch">
+                <input type="checkbox" id="autoScanLinks" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="toggle-switch">
+            <span class="toggle-label">Block Downloads</span>
+            <label class="switch">
+                <input type="checkbox" id="blockDownloads">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div class="toggle-switch">
+            <span class="toggle-label">Show Notifications</span>
+            <label class="switch">
+                <input type="checkbox" id="showNotifications" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <div class="footer">
+        Protected by PhishGuard AI Detection
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
