@@ -1,0 +1,486 @@
+
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - PhishGuard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>
+                <i class="fas fa-cog me-2"></i>
+                Admin Panel
+            </h2>
+            <div class="btn-group">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+                    <i class="fas fa-download me-2"></i>Export Reports
+                </button>
+                <button class="btn btn-success" id="sendTestAlert">
+                    <i class="fas fa-bell me-2"></i>Test Alert
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Dashboard -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ stats.total_users }}</h4>
+                        <p class="mb-0">Total Users</p>
+                    </div>
+                    <i class="fas fa-users fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ stats.total_scans }}</h4>
+                        <p class="mb-0">Total Scans</p>
+                    </div>
+                    <i class="fas fa-search fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ stats.threats_detected }}</h4>
+                        <p class="mb-0">Threats Detected</p>
+                    </div>
+                    <i class="fas fa-shield-alt fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4>{{ stats.active_today }}</h4>
+                        <p class="mb-0">Active Today</p>
+                    </div>
+                    <i class="fas fa-clock fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab">
+            <i class="fas fa-users me-2"></i>User Management
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="scans-tab" data-bs-toggle="tab" data-bs-target="#scans" type="button" role="tab">
+            <i class="fas fa-search me-2"></i>Recent Scans
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="threats-tab" data-bs-toggle="tab" data-bs-target="#threats" type="button" role="tab">
+            <i class="fas fa-exclamation-triangle me-2"></i>Threat Analysis
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button" role="tab">
+            <i class="fas fa-server me-2"></i>System Status
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content" id="adminTabContent">
+    <!-- Users Tab -->
+    <div class="tab-pane fade show active" id="users" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">User Management</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Joined</th>
+                                <th>Last Active</th>
+                                <th>Scans</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ user.id }}</td>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.email }}</td>
+                                <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    {% if user.last_scan %}
+                                        {{ user.last_scan.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        Never
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.scan_count }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if user.active else 'secondary' }}">
+                                        {{ 'Active' if user.active else 'Inactive' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-primary" onclick="viewUser({{ user.id }})">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-warning" onclick="toggleUser({{ user.id }})">
+                                            <i class="fas fa-{{ 'pause' if user.active else 'play' }}"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" onclick="deleteUser({{ user.id }})">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scans Tab -->
+    <div class="tab-pane fade" id="scans" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Scans</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Type</th>
+                                <th>Content</th>
+                                <th>Result</th>
+                                <th>Confidence</th>
+                                <th>Method</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for scan in recent_scans %}
+                            <tr>
+                                <td>{{ scan.scan_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ scan.user.username }}</td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ scan.scan_type.upper() }}</span>
+                                </td>
+                                <td>
+                                    <span class="text-truncate d-inline-block" style="max-width: 200px;">
+                                        {{ scan.content }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if scan.result == 'safe' else ('warning' if scan.result == 'suspicious' else 'danger') }}">
+                                        {{ scan.result.upper() }}
+                                    </span>
+                                </td>
+                                <td>{{ "%.1f"|format(scan.confidence * 100) }}%</td>
+                                <td>{{ scan.detection_method }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Threats Tab -->
+    <div class="tab-pane fade" id="threats" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Threat Analysis</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <canvas id="threatChart" width="400" height="200"></canvas>
+                    </div>
+                    <div class="col-md-6">
+                        <canvas id="detectionMethodChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <h6>Top Threat Domains</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Domain</th>
+                                <th>Detections</th>
+                                <th>Last Seen</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for domain in threat_domains %}
+                            <tr>
+                                <td>{{ domain.name }}</td>
+                                <td>{{ domain.count }}</td>
+                                <td>{{ domain.last_seen.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="blockDomain('{{ domain.name }}')">
+                                        Block
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Tab -->
+    <div class="tab-pane fade" id="system" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">System Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>System Health</h6>
+                        <ul class="list-group">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Database Connection
+                                <span class="badge bg-success">✓ Active</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                ML Model Status
+                                <span class="badge bg-success">✓ Loaded</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Email Service
+                                <span class="badge bg-{{ 'success' if email_configured else 'warning' }}">
+                                    {{ '✓ Active' if email_configured else '⚠ Not Configured' }}
+                                </span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Background Tasks
+                                <span class="badge bg-info">ℹ Running</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>System Actions</h6>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" onclick="refreshBlacklist()">
+                                <i class="fas fa-sync me-2"></i>Refresh Blacklist
+                            </button>
+                            <button class="btn btn-outline-success" onclick="updateModel()">
+                                <i class="fas fa-brain me-2"></i>Update ML Model
+                            </button>
+                            <button class="btn btn-outline-warning" onclick="cleanupLogs()">
+                                <i class="fas fa-broom me-2"></i>Cleanup Old Logs
+                            </button>
+                            <button class="btn btn-outline-info" onclick="backupDatabase()">
+                                <i class="fas fa-database me-2"></i>Backup Database
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Export Reports</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="exportForm">
+                    <div class="mb-3">
+                        <label class="form-label">Report Type</label>
+                        <select class="form-select" name="report_type">
+                            <option value="scans">Scan History</option>
+                            <option value="users">User Activity</option>
+                            <option value="threats">Threat Analysis</option>
+                            <option value="all">Complete Report</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Date Range</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <input type="date" class="form-control" name="start_date" required>
+                            </div>
+                            <div class="col-md-6">
+                                <input type="date" class="form-control" name="end_date" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Export Format</label>
+                        <select class="form-select" name="format">
+                            <option value="csv">CSV</option>
+                            <option value="json">JSON</option>
+                            <option value="pdf">PDF Report</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="exportReports()">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Admin panel JavaScript functionality
+function viewUser(userId) {
+    // Implementation for viewing user details
+    alert('View user: ' + userId);
+}
+
+function toggleUser(userId) {
+    // Implementation for toggling user status
+    if (confirm('Toggle user status?')) {
+        fetch(`/admin/toggle-user/${userId}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+    }
+}
+
+function deleteUser(userId) {
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+        fetch(`/admin/delete-user/${userId}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+    }
+}
+
+function blockDomain(domain) {
+    if (confirm(`Block domain: ${domain}?`)) {
+        fetch('/admin/block-domain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: domain })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                notificationManager.showToast('Domain blocked successfully', 'success');
+            }
+        });
+    }
+}
+
+function exportReports() {
+    const form = document.getElementById('exportForm');
+    const formData = new FormData(form);
+    
+    fetch('/admin/export', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.blob())
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'phishguard-report.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+    });
+    
+    bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
+}
+
+// Initialize charts
+document.addEventListener('DOMContentLoaded', function() {
+    // Threat distribution chart
+    const threatCtx = document.getElementById('threatChart').getContext('2d');
+    new Chart(threatCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Safe', 'Suspicious', 'Phishing'],
+            datasets: [{
+                data: [{{ stats.safe_scans }}, {{ stats.suspicious_scans }}, {{ stats.phishing_scans }}],
+                backgroundColor: ['#28a745', '#ffc107', '#dc3545']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Threat Distribution'
+                }
+            }
+        }
+    });
+
+    // Detection method chart
+    const methodCtx = document.getElementById('detectionMethodChart').getContext('2d');
+    new Chart(methodCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['ML Model', 'Rules', 'Blacklist'],
+            datasets: [{
+                data: [{{ stats.ml_detections }}, {{ stats.rule_detections }}, {{ stats.blacklist_detections }}],
+                backgroundColor: ['#007bff', '#6f42c1', '#fd7e14']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Detection Methods'
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

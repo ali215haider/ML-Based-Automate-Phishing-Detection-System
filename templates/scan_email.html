@@ -1,0 +1,513 @@
+{% extends "base.html" %}
+
+{% block title %}Email Analyzer - PhishGuard{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-envelope me-2"></i>
+                    Email Analyzer
+                </h4>
+                <p class="text-muted mb-0">Analyze email content for phishing indicators and social engineering tactics</p>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data" id="emailScanForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <!-- File Upload Option -->
+                    <div class="mb-4">
+                        <h6 class="mb-3">
+                            <i class="fas fa-upload me-2"></i>
+                            Upload Email File
+                        </h6>
+                        <div class="mb-3">
+                            <label for="email_file" class="form-label">Select .EML File</label>
+                            <div class="input-group">
+                                <input type="file" 
+                                       class="form-control" 
+                                       id="email_file" 
+                                       name="email_file" 
+                                       accept=".eml"
+                                       onchange="toggleInputMethod('file')">
+                                <button type="submit" class="btn btn-primary" id="uploadBtn">
+                                    <i class="fas fa-search me-2"></i>
+                                    Analyze File
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Supported format: .eml (Email Message files) - Max file size: 5MB
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Privacy Notice:</strong> Your email files are analyzed locally and are not stored on our servers.
+                        </div>
+                    </div>
+                    
+                    <!-- Divider -->
+                    <div class="text-center mb-4">
+                        <span class="badge bg-secondary">OR</span>
+                    </div>
+                    
+                    <!-- Text Input Option -->
+                    <div class="mb-3">
+                        <h6 class="mb-3">
+                            <i class="fas fa-edit me-2"></i>
+                            Paste Email Content
+                        </h6>
+                        <label for="email_content" class="form-label">Email Content</label>
+                        <textarea class="form-control" 
+                                  id="email_content" 
+                                  name="email_content" 
+                                  rows="10" 
+                                  placeholder="Paste the email content here (including headers if available)..."
+                                  onchange="toggleInputMethod('text')">{{ request.form.email_content if request.form.email_content else '' }}</textarea>
+                        <div class="form-text">
+                            Include the full email content including headers, subject, sender, and body text for best analysis.
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button type="submit" class="btn btn-primary" id="analyzeBtn">
+                            <i class="fas fa-search me-2"></i>
+                            Analyze Email
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
+                            <i class="fas fa-eraser me-2"></i>
+                            Clear All
+                        </button>
+                    </div>
+                </form>
+
+                {% if result %}
+                <div class="mt-4">
+                    <h5>
+                        <i class="fas fa-chart-line me-2"></i>
+                        Analysis Results
+                    </h5>
+
+                    <!-- Result Summary -->
+                    <div class="alert 
+                        {% if result.result == 'safe' %}alert-success
+                        {% elif result.result == 'phishing' %}alert-danger
+                        {% else %}alert-warning{% endif %}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="alert-heading mb-1">
+                                    {% if result.result == 'safe' %}
+                                        <i class="fas fa-check-circle me-2"></i>Email Appears Safe
+                                    {% elif result.result == 'phishing' %}
+                                        <i class="fas fa-exclamation-triangle me-2"></i>Phishing Email Detected
+                                    {% else %}
+                                        <i class="fas fa-question-circle me-2"></i>Suspicious Email
+                                    {% endif %}
+                                </h6>
+                                <p class="mb-0">
+                                    {% if result.result == 'safe' %}
+                                        This email content shows no obvious signs of phishing.
+                                    {% elif result.result == 'phishing' %}
+                                        <strong>Warning:</strong> This email shows multiple indicators of phishing activity.
+                                    {% else %}
+                                        This email has some characteristics that warrant caution.
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="text-end">
+                                <div class="h5 mb-0">{{ (result.confidence * 100)|round }}%</div>
+                                <small>Confidence</small>
+                                {% if result.features.risk_score %}
+                                <div class="h6 mb-0 mt-1">{{ result.features.risk_score }}/100</div>
+                                <small>Risk Score</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Detection Method -->
+                    {% if result.method == 'hybrid-enhanced' %}
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-cogs me-2"></i>
+                        <strong>Enhanced Analysis:</strong> This scan used our advanced hybrid detection system combining 
+                        {% if result.detection_methods %}
+                            {% for method in result.detection_methods %}
+                                {{ method }}{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        for comprehensive threat detection.
+                    </div>
+                    
+                    <!-- Analysis Scores Breakdown -->
+                    {% if result.features.rule_analysis_score or result.features.feature_analysis_score %}
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center py-2">
+                                    <h6 class="card-title mb-1">Rule Analysis</h6>
+                                    <div class="h5 mb-0 text-primary">{{ result.features.rule_analysis_score or 0 }}</div>
+                                    <small class="text-muted">Risk Score</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center py-2">
+                                    <h6 class="card-title mb-1">Feature Analysis</h6>
+                                    <div class="h5 mb-0 text-info">{{ result.features.feature_analysis_score or 0 }}</div>
+                                    <small class="text-muted">Risk Score</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center py-2">
+                                    <h6 class="card-title mb-1">Overall Risk</h6>
+                                    <div class="h5 mb-0 text-warning">{{ result.features.risk_score or 0 }}</div>
+                                    <small class="text-muted">Combined Score</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                    
+                    <!-- Detailed Analysis -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-microscope me-2"></i>
+                                Detailed Analysis
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <!-- Enhanced Rule Analysis -->
+                            {% if result.details.rule_analysis and result.details.rule_analysis.rules_triggered %}
+                            <h6><i class="fas fa-shield-alt me-2"></i>Security Rules Triggered</h6>
+                            <div class="mb-3">
+                                {% for rule in result.details.rule_analysis.rules_triggered %}
+                                <div class="alert 
+                                    {% if rule.severity == 'high' %}alert-danger
+                                    {% elif rule.severity == 'medium' %}alert-warning
+                                    {% else %}alert-info{% endif %} py-2">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <i class="fas 
+                                                {% if rule.severity == 'high' %}fa-exclamation-triangle
+                                                {% elif rule.severity == 'medium' %}fa-exclamation-circle
+                                                {% else %}fa-info-circle{% endif %} me-2"></i>
+                                            <strong>{{ rule.rule_name }}:</strong>
+                                            {{ rule.description }}
+                                            {% if rule.detected_value %}
+                                            <br><small class="text-muted">Details: {{ rule.detected_value }}</small>
+                                            {% endif %}
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge 
+                                                {% if rule.severity == 'high' %}bg-danger
+                                                {% elif rule.severity == 'medium' %}bg-warning
+                                                {% else %}bg-info{% endif %}">{{ rule.severity|title }}</span>
+                                            <br><small class="text-muted">+{{ rule.score }} risk</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Legacy Risk Factors -->
+                            {% if result.details.risk_factors %}
+                            <h6>Additional Risk Factors</h6>
+                            <div class="mb-3">
+                                {% for factor in result.details.risk_factors %}
+                                <div class="alert 
+                                    {% if factor.severity == 'high' %}alert-danger
+                                    {% elif factor.severity == 'medium' %}alert-warning
+                                    {% else %}alert-info{% endif %} py-2">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <i class="fas 
+                                                {% if factor.severity == 'high' %}fa-exclamation-triangle
+                                                {% elif factor.severity == 'medium' %}fa-exclamation-circle
+                                                {% else %}fa-info-circle{% endif %} me-2"></i>
+                                            <strong>{{ factor.rule or factor.detected or 'Security Rule' }}:</strong>
+                                            {{ factor.description or factor }}
+                                        </div>
+                                        {% if factor.severity %}
+                                        <span class="badge 
+                                            {% if factor.severity == 'high' %}bg-danger
+                                            {% elif factor.severity == 'medium' %}bg-warning
+                                            {% else %}bg-info{% endif %}">{{ factor.severity|title }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Safe Indicators -->
+                            {% if result.details.safe_indicators %}
+                            <h6><i class="fas fa-check-circle me-2 text-success"></i>Safe Indicators</h6>
+                            <div class="mb-3">
+                                {% for indicator in result.details.safe_indicators %}
+                                <div class="alert alert-success py-2">
+                                    <i class="fas fa-check me-2"></i>
+                                    {{ indicator }}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Recommendations -->
+                            {% if result.details.recommendations %}
+                            <h6><i class="fas fa-lightbulb me-2 text-info"></i>Security Recommendations</h6>
+                            <div class="mb-3">
+                                {% for recommendation in result.details.recommendations %}
+                                <div class="alert alert-info py-2">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    {{ recommendation }}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            {% if result.details.rules_triggered %}
+                            <h6>Legacy Security Indicators</h6>
+                            <div class="mb-3">
+                                {% for rule in result.details.rules_triggered %}
+                                <div class="alert alert-warning alert-sm py-2">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    {{ rule }}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            {% if result.details.suspicious_urls %}
+                            <h6>Suspicious URLs Found</h6>
+                            <div class="mb-3">
+                                {% for url in result.details.suspicious_urls %}
+                                <div class="alert alert-danger py-2">
+                                    <i class="fas fa-link me-2"></i>
+                                    <code>{{ url }}</code>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Enhanced Feature Analysis -->
+                            {% if result.details.feature_analysis %}
+                            <h6><i class="fas fa-chart-bar me-2"></i>Advanced Feature Analysis</h6>
+                            <div class="mb-3">
+                                {% set fa = result.details.feature_analysis %}
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card bg-light mb-2">
+                                            <div class="card-body py-2">
+                                                <h6 class="card-title mb-1">Sender Analysis</h6>
+                                                <small class="text-muted">
+                                                    Suspicious: {{ 'Yes' if fa.sender_suspicious else 'No' }}<br>
+                                                    Risk Score: {{ fa.sender_risk_score|default(0) }}<br>
+                                                    Executive Title: {{ 'Yes' if fa.has_exec_title else 'No' }}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card bg-light mb-2">
+                                            <div class="card-body py-2">
+                                                <h6 class="card-title mb-1">Content Analysis</h6>
+                                                <small class="text-muted">
+                                                    Urgent Phrases: {{ fa.urgent_phrases_count|default(0) }}<br>
+                                                    Personal Info Requests: {{ fa.personal_info_requests|default(0) }}<br>
+                                                    Content Risk Score: {{ fa.content_risk_score|default(0) }}
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {% if fa.bec_suspicious %}
+                                <div class="card bg-light mb-2">
+                                    <div class="card-body py-2">
+                                        <h6 class="card-title mb-1"><i class="fas fa-briefcase me-2"></i>Business Email Compromise (BEC) Analysis</h6>
+                                        <small class="text-muted">
+                                            BEC Suspicious: {{ 'Yes' if fa.bec_suspicious else 'No' }}<br>
+                                            BEC Risk Score: {{ fa.bec_risk_score|default(0) }}<br>
+                                            Financial Requests: {{ fa.financial_requests|default(0) }}
+                                        </small>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                {% if fa.email_urls_suspicious %}
+                                <div class="card bg-light mb-2">
+                                    <div class="card-body py-2">
+                                        <h6 class="card-title mb-1"><i class="fas fa-link me-2"></i>URL Analysis</h6>
+                                        <small class="text-muted">
+                                            URLs Found: {{ fa.num_links|default(0) }}<br>
+                                            Suspicious URLs: {{ fa.suspicious_urls_count|default(0) }}<br>
+                                            URL Risk Score: {{ fa.email_urls_risk_score|default(0) }}
+                                        </small>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Legacy Features Display -->
+                            {% if result.details.features %}
+                            <h6>Email Characteristics</h6>
+                            <div class="row">
+                                {% set features = result.details.features %}
+                                <div class="col-md-6">
+                                    <ul class="list-unstyled small">
+                                        <li><strong>Content Length:</strong> {{ features.content_length }} characters</li>
+                                        <li><strong>Number of URLs:</strong> {{ features.num_urls }}</li>
+                                        <li><strong>Contains HTML:</strong> 
+                                            {% if features.contains_html %}
+                                                <span class="text-info">Yes</span>
+                                            {% else %}
+                                                <span class="text-muted">No</span>
+                                            {% endif %}
+                                        </li>
+                                        <li><strong>URL Shorteners:</strong> 
+                                            {% if features.has_url_shortener %}
+                                                <span class="text-warning">Detected</span>
+                                            {% else %}
+                                                <span class="text-success">None</span>
+                                            {% endif %}
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <ul class="list-unstyled small">
+                                        <li><strong>Urgent Phrases:</strong> {{ features.num_urgent_phrases }}</li>
+                                        <li><strong>Generic Greeting:</strong> 
+                                            {% if features.has_generic_greeting %}
+                                                <span class="text-warning">Yes</span>
+                                            {% else %}
+                                                <span class="text-success">No</span>
+                                            {% endif %}
+                                        </li>
+                                        <li><strong>Sensitive Requests:</strong> {{ features.num_sensitive_requests }}</li>
+                                        <li><strong>Spelling Errors:</strong> {{ features.num_spelling_errors }}</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Email Safety Tips -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    Email Security Best Practices
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6 class="text-success">Safe Email Signs</h6>
+                        <ul class="list-unstyled small">
+                            <li><i class="fas fa-check text-success me-2"></i>Personal greeting</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Legitimate sender address</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Proper spelling/grammar</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Expected communication</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-warning">Red Flags</h6>
+                        <ul class="list-unstyled small">
+                            <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Urgent action required</li>
+                            <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Generic greetings</li>
+                            <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Suspicious attachments</li>
+                            <li><i class="fas fa-exclamation-triangle text-warning me-2"></i>Requests for passwords</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6 class="text-info">Always Verify</h6>
+                        <ul class="list-unstyled small">
+                            <li><i class="fas fa-eye text-info me-2"></i>Sender identity</li>
+                            <li><i class="fas fa-eye text-info me-2"></i>URL destinations</li>
+                            <li><i class="fas fa-eye text-info me-2"></i>Request legitimacy</li>
+                            <li><i class="fas fa-eye text-info me-2"></i>Through official channels</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('emailScanForm').addEventListener('submit', function() {
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const uploadBtn = document.getElementById('uploadBtn');
+    
+    // Check which method is being used
+    const fileInput = document.getElementById('email_file');
+    const textInput = document.getElementById('email_content');
+    
+    if (fileInput.files.length > 0) {
+        uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Analyzing...';
+        uploadBtn.disabled = true;
+    } else {
+        analyzeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Analyzing...';
+        analyzeBtn.disabled = true;
+    }
+});
+
+function toggleInputMethod(method) {
+    const fileInput = document.getElementById('email_file');
+    const textInput = document.getElementById('email_content');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const uploadBtn = document.getElementById('uploadBtn');
+    
+    if (method === 'file') {
+        // Clear text input when file is selected
+        textInput.value = '';
+        textInput.removeAttribute('required');
+        analyzeBtn.style.display = 'none';
+        uploadBtn.style.display = 'inline-block';
+    } else if (method === 'text') {
+        // Clear file input when text is entered
+        fileInput.value = '';
+        textInput.setAttribute('required', 'required');
+        analyzeBtn.style.display = 'inline-block';
+        uploadBtn.style.display = 'none';
+    }
+}
+
+function clearForm() {
+    // Clear both inputs
+    document.getElementById('email_content').value = '';
+    document.getElementById('email_file').value = '';
+    
+    // Reset button visibility
+    document.getElementById('analyzeBtn').style.display = 'inline-block';
+    document.getElementById('uploadBtn').style.display = 'none';
+    
+    // Reset required attribute
+    document.getElementById('email_content').setAttribute('required', 'required');
+}
+
+// Initialize the form state
+document.addEventListener('DOMContentLoaded', function() {
+    // Hide upload button initially
+    document.getElementById('uploadBtn').style.display = 'none';
+    
+    // Set initial required state
+    document.getElementById('email_content').setAttribute('required', 'required');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+Add new features:
+
+Detection Improvements:
+Add more ML features or update the model
+Enhance rule-based detection patterns
+Add new scan types (certificate analysis)
+UI/UX Improvements:
+Add real-time notifications
+Feature Additions:
+User management (admin panel)
+Export scan reports
+Email notifications for threats
+Browser Extension:
+Add new protection features
+Improve popup interface
+Add configuration options
+Security Enhancements:
+Session management
+Audit logging
+Note: Add these feature very professionaly high accuracy of all features and all these features work properly.
+URL-Based Rules
+Rule Condition Why it works
+Length Check len(url) > 75 Phishing URLs are often long to hide malicious paths.
+IP Address in URL http://192.168... Attackers use raw IPs to avoid domain registration.
+Multiple subdomains count('.') > 3 Phishers use fake subdomains to mimic trusted domains.
+“@” symbol @ in URL Redirects to another URL, often used in phishing.
+HTTPS missing No https:// Lack of SSL is suspicious for login forms.
+Suspicious keywords login, secure, banking, etc. Often used in phishing to gain trust.
+URL shortening bit.ly, tinyurl Used to hide real URL
+Email-Based Rules
+Rule Condition Why it works
+Spoofed sender From = CEO@company.com, but IP not matching domain Used in BEC (Business Email Compromise).
+Generic greeting “Dear user” or “Dear customer” Phishers don't know your name.
+Urgency tone “Immediate action required” Pressure tactics = phishing.
+Suspicious attachments .exe, .html, .js files High-risk for malware/phishing.
+Mismatched domain Display name ≠ actual email Email impersonation technique.
+Website Content-Based Rules
+Rule Condition Why it works
+No favicon Missing favicon.ico Legit sites almost always have one.
+Form action is blank <form action=""> Captures your input without actual submission.
+External form handler <form action="http://phisher.com"> Redirects data to attacker.
+Obfuscated JavaScript eval(), document.write() used Often used to hide malicious code.
+Clickjacking elements Invisible iframes Common in credential theft.
+SSL Certificate-Based Rules
+Rule Condition Why it works
+Self-signed cert Issuer = same as subject Not trusted.
+Expired cert expiry_date < today Likely not maintained.
+Mismatched CN/SAN Domain doesn’t match certificate Fake or stolen cert.
+work on the bases of these rules detection perform.
+One more thing i want to change when i,am scroll the website page the header of the website were not move they stop at there place.
+i,am uploading the screen shots of some buttons when i,am change the color mode of website the buttons and its content font not seenable fix it according to the dark/bright mode.
+in login page in password option in dark mode in password bar show lock logo when i,am turn into bright mode lock logo change into other logo fix it into lock logo when i,am open bright mode.
+One more changing in email analyzer add option of choose html file like choose file option in html file scanner.
+perform all these changes very accurately and professionaly and all these changes work properly. Thanks
